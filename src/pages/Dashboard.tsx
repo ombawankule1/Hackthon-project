@@ -19,64 +19,39 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
-import { db, auth } from "@/firebase";
+import {
+  collection,
+  getDocs,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
+import { db } from "@/firebase";
 import { useEffect, useState } from "react";
 
 const Dashboard = () => {
-  const [role, setRole] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  // DEMO SWITCH — CHANGE ONLY THIS LINE
+  const role = "admin" as "admin" | "other";
+  // change to "other" to block access
+
   const [complaints, setComplaints] = useState<any[]>([]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setRole("citizen");
-        setLoading(false);
-        return;
-      }
+    const fetchComplaints = async () => {
+      const snapshot = await getDocs(collection(db, "complaints"));
+      const data = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      setComplaints(data);
+    };
 
-      const userRef = doc(db, "users", user.uid);
-      const snap = await getDoc(userRef);
-
-      if (snap.exists()) {
-        setRole(snap.data().role || "citizen");
-      } else {
-        setRole("citizen");
-      }
-
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (role === "admin" || role === "judge") {
-      const fetchComplaints = async () => {
-        const snapshot = await getDocs(collection(db, "complaints"));
-        const data = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }));
-        setComplaints(data);
-      };
+    if (role === "admin") {
       fetchComplaints();
-    } else {
-      setComplaints([]);
     }
   }, [role]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        Loading dashboard…
-      </div>
-    );
-  }
-
-  if (role === "citizen") {
+  // BLOCK NON-ADMINS
+  if (role === "other") {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Navbar />
@@ -85,7 +60,7 @@ const Dashboard = () => {
             <AlertTriangle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <h2 className="text-xl font-semibold mb-2">Access Restricted</h2>
             <p className="text-muted-foreground">
-              This dashboard is available only to officials and administrators.
+              This dashboard is available only to admins.
             </p>
           </div>
         </main>
@@ -93,6 +68,21 @@ const Dashboard = () => {
       </div>
     );
   }
+
+  const resolveComplaint = async (id: string) => {
+    await updateDoc(doc(db, "complaints", id), {
+      status: "RESOLVED",
+      resolvedAt: new Date(),
+    });
+
+    // refresh data
+    const snapshot = await getDocs(collection(db, "complaints"));
+    const data = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    }));
+    setComplaints(data);
+  };
 
   const getDaysOpen = (createdAt: any) => {
     if (!createdAt || !createdAt.toDate) return 0;
@@ -106,7 +96,9 @@ const Dashboard = () => {
   const total = complaints.length;
   const resolved = complaints.filter((c) => c.status === "RESOLVED").length;
   const open = complaints.filter((c) => c.status === "OPEN").length;
-  const escalated = complaints.filter((c) => (c.escalationLevel || 0) > 0).length;
+  const escalated = complaints.filter(
+    (c) => (c.escalationLevel || 0) > 0
+  ).length;
 
   const stats = [
     { label: "Total Complaints", value: total, icon: BarChart3, trend: "Live" },
@@ -133,7 +125,8 @@ const Dashboard = () => {
     }
     if (c.status === "RESOLVED") departmentMap[dept].resolved++;
     else departmentMap[dept].pending++;
-    if ((c.escalationLevel || 0) > 0) departmentMap[dept].escalated++;
+    if ((c.escalationLevel || 0) > 0)
+      departmentMap[dept].escalated++;
   });
 
   const departmentData = Object.values(departmentMap);
@@ -165,6 +158,7 @@ const Dashboard = () => {
 
       <main className="flex-1 py-12">
         <div className="container mx-auto px-4">
+
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <BarChart3 className="w-8 h-8 text-primary" />
@@ -173,7 +167,7 @@ const Dashboard = () => {
               SLA Performance Dashboard
             </h1>
             <p className="text-muted-foreground">
-              Real-time grievance routing, SLA tracking & escalation
+              Demo Role: <span className="font-semibold">{role}</span>
             </p>
           </div>
 
@@ -193,39 +187,6 @@ const Dashboard = () => {
             ))}
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6">
-            <div className="feature-card">
-              <h2 className="text-lg font-semibold mb-4">
-                Department Performance
-              </h2>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={departmentData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" />
-                  <Tooltip />
-                  <Bar dataKey="resolved" fill="#10b981" />
-                  <Bar dataKey="pending" fill="#f59e0b" />
-                  <Bar dataKey="escalated" fill="#ef4444" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="feature-card">
-              <h2 className="text-lg font-semibold mb-4">Complaint Status</h2>
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie data={statusData} dataKey="value" outerRadius={100}>
-                    {statusData.map((s, i) => (
-                      <Cell key={i} fill={s.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
           <div className="feature-card mt-6">
             <h2 className="text-lg font-semibold mb-4">
               SLA Watchlist (Auto-Flagged)
@@ -241,16 +202,7 @@ const Dashboard = () => {
               </thead>
               <tbody>
                 {slaWatchlist.map((c) => (
-                  <tr
-                    key={c.id}
-                    className={`border-b ${
-                      c.breached
-                        ? "bg-red-500/10"
-                        : c.warning
-                        ? "bg-yellow-500/10"
-                        : ""
-                    }`}
-                  >
+                  <tr key={c.id} className="border-b">
                     <td className="py-2">{c.subject}</td>
                     <td className="py-2">{c.category}</td>
                     <td className="py-2 font-semibold">{c.daysOpen}</td>
@@ -260,12 +212,22 @@ const Dashboard = () => {
                         : c.warning
                         ? "Near Breach"
                         : "Within SLA"}
+
+                      {c.status === "OPEN" && (
+                        <button
+                          onClick={() => resolveComplaint(c.id)}
+                          className="ml-2 text-xs px-2 py-1 bg-green-600 text-white rounded"
+                        >
+                          Resolve
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
         </div>
       </main>
 

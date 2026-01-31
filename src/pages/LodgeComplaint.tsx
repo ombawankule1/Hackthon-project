@@ -1,3 +1,5 @@
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../firebase";
 import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -5,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { FileText, Send } from "lucide-react";
 
@@ -42,92 +50,110 @@ const LodgeComplaint = () => {
     description: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Generate a mock complaint ID
-    const complaintId = `GRV-${Date.now().toString().slice(-8)}`;
-    
-    toast({
-      title: "Complaint Submitted Successfully!",
-      description: `Your complaint ID is: ${complaintId}. Track your complaint status using this ID.`,
-    });
 
-    // Reset form
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      category: "",
-      district: "",
-      subject: "",
-      description: "",
-    });
+    try {
+      await addDoc(collection(db, "complaints"), {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        category: formData.category,
+        district: formData.district,
+        subject: formData.subject,
+        description: formData.description,
+        status: "OPEN",
+        slaDays: 7,
+        createdAt: serverTimestamp(),
+      });
+
+      toast({
+        title: "Complaint Submitted Successfully!",
+        description: "Your complaint has been registered and routed.",
+      });
+
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        category: "",
+        district: "",
+        subject: "",
+        description: "",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Submission Failed",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar />
-      
+
       <main className="flex-1 py-12">
         <div className="container mx-auto px-4 max-w-2xl">
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <FileText className="w-8 h-8 text-primary" />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+            <h1 className="text-2xl md:text-3xl font-bold mb-2">
               Lodge a Complaint
             </h1>
             <p className="text-muted-foreground">
-              Submit your grievance and we'll route it to the appropriate department
+              Submit your grievance and we’ll route it to the right department
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="feature-card space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name *</Label>
+              <div>
+                <Label>Full Name *</Label>
                 <Input
-                  id="name"
                   required
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter your full name"
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number *</Label>
+              <div>
+                <Label>Phone *</Label>
                 <Input
-                  id="phone"
-                  type="tel"
                   required
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="Enter phone number"
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+            <div>
+              <Label>Email</Label>
               <Input
-                id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="Enter email address (optional)"
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
               />
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">Category *</Label>
+              <div>
+                <Label>Category *</Label>
                 <Select
                   value={formData.category}
-                  onValueChange={(value) => setFormData({ ...formData, category: value })}
-                  required
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, category: value })
+                  }
                 >
-                  <SelectTrigger id="category">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -139,20 +165,22 @@ const LodgeComplaint = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="district">District *</Label>
+
+              <div>
+                <Label>District *</Label>
                 <Select
                   value={formData.district}
-                  onValueChange={(value) => setFormData({ ...formData, district: value })}
-                  required
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, district: value })
+                  }
                 >
-                  <SelectTrigger id="district">
+                  <SelectTrigger>
                     <SelectValue placeholder="Select district" />
                   </SelectTrigger>
                   <SelectContent>
-                    {districts.map((dist) => (
-                      <SelectItem key={dist} value={dist}>
-                        {dist}
+                    {districts.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -160,31 +188,31 @@ const LodgeComplaint = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="subject">Subject *</Label>
+            <div>
+              <Label>Subject *</Label>
               <Input
-                id="subject"
                 required
                 value={formData.subject}
-                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                placeholder="Brief subject of your complaint"
+                onChange={(e) =>
+                  setFormData({ ...formData, subject: e.target.value })
+                }
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Description *</Label>
+            <div>
+              <Label>Description *</Label>
               <Textarea
-                id="description"
-                required
                 rows={5}
+                required
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Provide detailed description of your complaint..."
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
               />
             </div>
 
-            <Button type="submit" size="lg" className="w-full">
-              <Send className="w-5 h-5" />
+            <Button type="submit" className="w-full">
+              <Send className="mr-2 h-5 w-5" />
               Submit Complaint
             </Button>
           </form>

@@ -22,7 +22,6 @@ import {
 import {
   collection,
   getDocs,
-  Timestamp,
   doc,
   getDoc,
 } from "firebase/firestore";
@@ -31,9 +30,9 @@ import { db, auth } from "@/firebase";
 import { useEffect, useState } from "react";
 
 const Dashboard = () => {
-  const [complaints, setComplaints] = useState<any[]>([]);
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [complaints, setComplaints] = useState<any[]>([]);
 
   // 🔐 AUTH + ROLE CHECK
   useEffect(() => {
@@ -45,10 +44,10 @@ const Dashboard = () => {
       }
 
       const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
+      const snap = await getDoc(userRef);
 
-      if (userSnap.exists()) {
-        setRole(userSnap.data().role);
+      if (snap.exists()) {
+        setRole(snap.data().role || "citizen");
       } else {
         setRole("citizen");
       }
@@ -59,14 +58,14 @@ const Dashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // 📥 FETCH COMPLAINTS
+  // 📥 FETCH COMPLAINTS (admins / judges only)
   useEffect(() => {
     if (role === "admin" || role === "judge") {
       const fetchComplaints = async () => {
         const snapshot = await getDocs(collection(db, "complaints"));
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
         }));
         setComplaints(data);
       };
@@ -74,7 +73,7 @@ const Dashboard = () => {
     }
   }, [role]);
 
-  // ⏳ LOADING
+  // ⏳ LOADING STATE
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -83,7 +82,7 @@ const Dashboard = () => {
     );
   }
 
-  // 🚫 ACCESS BLOCK
+  // 🚫 CITIZEN BLOCK
   if (role === "citizen") {
     return (
       <div className="min-h-screen flex flex-col bg-background">
@@ -102,8 +101,9 @@ const Dashboard = () => {
     );
   }
 
-  // ---------- SLA HELPER ----------
-  const getDaysOpen = (createdAt: Timestamp) => {
+  // ---------- HELPERS ----------
+  const getDaysOpen = (createdAt: any) => {
+    if (!createdAt || !createdAt.toDate) return 0;
     const created = createdAt.toDate();
     const now = new Date();
     return Math.floor(
@@ -115,25 +115,37 @@ const Dashboard = () => {
   const total = complaints.length;
   const resolved = complaints.filter((c) => c.status === "RESOLVED").length;
   const open = complaints.filter((c) => c.status === "OPEN").length;
-  const escalated = complaints.filter((c) => c.escalationLevel > 0).length;
+  const escalated = complaints.filter(
+    (c) => (c.escalationLevel || 0) > 0
+  ).length;
 
   const stats = [
-    { label: "Total Complaints", value: total, icon: BarChart3 },
-    { label: "Resolved", value: resolved, icon: CheckCircle2 },
-    { label: "Open", value: open, icon: Clock },
-    { label: "Escalated", value: escalated, icon: AlertTriangle },
+    { label: "Total Complaints", value: total, icon: BarChart3, trend: "Live" },
+    { label: "Resolved", value: resolved, icon: CheckCircle2, trend: "Updated" },
+    { label: "Open", value: open, icon: Clock, trend: "Tracking SLA" },
+    {
+      label: "Escalated",
+      value: escalated,
+      icon: AlertTriangle,
+      trend: "Auto-escalated",
+    },
   ];
 
-  // ---------- DEPARTMENT ----------
+  // ---------- DEPARTMENT PERFORMANCE ----------
   const departmentMap: any = {};
   complaints.forEach((c) => {
     const dept = c.category || "Other";
     if (!departmentMap[dept]) {
-      departmentMap[dept] = { name: dept, resolved: 0, pending: 0, escalated: 0 };
+      departmentMap[dept] = {
+        name: dept,
+        resolved: 0,
+        pending: 0,
+        escalated: 0,
+      };
     }
     if (c.status === "RESOLVED") departmentMap[dept].resolved++;
     else departmentMap[dept].pending++;
-    if (c.escalationLevel > 0) departmentMap[dept].escalated++;
+    if ((c.escalationLevel || 0) > 0) departmentMap[dept].escalated++;
   });
 
   const departmentData = Object.values(departmentMap);
@@ -149,12 +161,13 @@ const Dashboard = () => {
   const slaWatchlist = complaints
     .filter((c) => c.status === "OPEN")
     .map((c) => {
-      const daysOpen = c.createdAt ? getDaysOpen(c.createdAt) : 0;
+      const daysOpen = getDaysOpen(c.createdAt);
+      const sla = c.slaDays || 7;
       return {
         ...c,
         daysOpen,
-        breached: daysOpen > c.slaDays,
-        warning: daysOpen >= c.slaDays - 2,
+        breached: daysOpen > sla,
+        warning: daysOpen >= sla - 2 && daysOpen <= sla,
       };
     })
     .sort((a, b) => b.daysOpen - a.daysOpen)
@@ -166,17 +179,32 @@ const Dashboard = () => {
 
       <main className="flex-1 py-12">
         <div className="container mx-auto px-4">
-          <h1 className="text-2xl font-bold mb-6">
-            SLA Performance Dashboard
-          </h1>
+          {/* HEADER */}
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <BarChart3 className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="text-2xl md:text-3xl font-bold mb-2">
+              SLA Performance Dashboard
+            </h1>
+            <p className="text-muted-foreground">
+              Real-time grievance routing, SLA tracking & escalation
+            </p>
+          </div>
 
           {/* STATS */}
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {stats.map((stat) => (
               <div key={stat.label} className="feature-card">
-                <stat.icon className="w-5 h-5 text-primary mb-2" />
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+                  <stat.icon className="w-5 h-5 text-primary" />
+                </div>
                 <p className="text-2xl font-bold">{stat.value}</p>
                 <p className="text-sm text-muted-foreground">{stat.label}</p>
+                <p className="text-xs text-primary mt-2 flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3" />
+                  {stat.trend}
+                </p>
               </div>
             ))}
           </div>
@@ -184,8 +212,12 @@ const Dashboard = () => {
           {/* CHARTS */}
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="feature-card">
-              <ResponsiveContainer width="100%" height={300}>
+              <h2 className="text-lg font-semibold mb-4">
+                Department Performance
+              </h2>
+              <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={departmentData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
                   <YAxis dataKey="name" type="category" />
                   <Tooltip />
@@ -197,7 +229,10 @@ const Dashboard = () => {
             </div>
 
             <div className="feature-card">
-              <ResponsiveContainer width="100%" height={300}>
+              <h2 className="text-lg font-semibold mb-4">
+                Complaint Status
+              </h2>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie data={statusData} dataKey="value" outerRadius={100}>
                     {statusData.map((s, i) => (
@@ -208,6 +243,48 @@ const Dashboard = () => {
                 </PieChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          {/* SLA WATCHLIST */}
+          <div className="feature-card mt-6">
+            <h2 className="text-lg font-semibold mb-4">
+              SLA Watchlist (Auto-Flagged)
+            </h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Subject</th>
+                  <th className="text-left py-2">Category</th>
+                  <th className="text-left py-2">Days Open</th>
+                  <th className="text-left py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slaWatchlist.map((c) => (
+                  <tr
+                    key={c.id}
+                    className={`border-b ${
+                      c.breached
+                        ? "bg-red-500/10"
+                        : c.warning
+                        ? "bg-yellow-500/10"
+                        : ""
+                    }`}
+                  >
+                    <td className="py-2">{c.subject}</td>
+                    <td className="py-2">{c.category}</td>
+                    <td className="py-2 font-semibold">{c.daysOpen}</td>
+                    <td className="py-2">
+                      {c.breached
+                        ? "SLA Breached"
+                        : c.warning
+                        ? "Near Breach"
+                        : "Within SLA"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </main>

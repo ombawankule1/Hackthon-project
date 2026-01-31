@@ -38,7 +38,7 @@ const districts = [
   "District E",
 ];
 
-// 🔁 ROUTING MAP (Category → Department)
+
 const departmentMap: Record<string, string> = {
   "Water Supply": "Water Department",
   Electricity: "Electricity Board",
@@ -83,13 +83,13 @@ const LodgeComplaint = () => {
         subject: formData.subject,
         description: formData.description,
 
-        // 🔁 Auto-routing
+        
         assignedDepartment: departmentMap[formData.category] || "General Administration",
         assignedOffice: `${formData.district} – ${
           departmentMap[formData.category] || "General Administration"
         }`,
 
-        // 📊 Governance fields
+        
         status: "OPEN",
         slaDays,
         slaDeadline,

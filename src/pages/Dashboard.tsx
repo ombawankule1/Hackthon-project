@@ -1,5 +1,5 @@
-import { Navbar } from "@/components/Navbar";
-import { Footer } from "@/components/Footer";
+import { Navbar } from "../components/Navbar";
+import { Footer } from "../components/Footer";
 import {
   BarChart3,
   Clock,
@@ -26,7 +26,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { db, auth } from "@/firebase";
+import { db, auth } from "../firebase";
 import { useEffect, useState } from "react";
 
 const Dashboard = () => {
@@ -58,7 +58,7 @@ const Dashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // 📥 FETCH COMPLAINTS (admins / judges only)
+  // 📥 FETCH COMPLAINTS
   useEffect(() => {
     if (role === "admin" || role === "judge") {
       const fetchComplaints = async () => {
@@ -73,7 +73,6 @@ const Dashboard = () => {
     }
   }, [role]);
 
-  // ⏳ LOADING STATE
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -82,7 +81,6 @@ const Dashboard = () => {
     );
   }
 
-  // 🚫 CITIZEN BLOCK
   if (role === "citizen") {
     return (
       <div className="min-h-screen flex flex-col bg-background">
@@ -131,7 +129,7 @@ const Dashboard = () => {
     },
   ];
 
-  // ---------- DEPARTMENT PERFORMANCE ----------
+  // ---------- DEPARTMENT ----------
   const departmentMap: any = {};
   complaints.forEach((c) => {
     const dept = c.category || "Other";
@@ -212,9 +210,6 @@ const Dashboard = () => {
           {/* CHARTS */}
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="feature-card">
-              <h2 className="text-lg font-semibold mb-4">
-                Department Performance
-              </h2>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={departmentData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" />
@@ -229,9 +224,6 @@ const Dashboard = () => {
             </div>
 
             <div className="feature-card">
-              <h2 className="text-lg font-semibold mb-4">
-                Complaint Status
-              </h2>
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie data={statusData} dataKey="value" outerRadius={100}>
@@ -243,48 +235,6 @@ const Dashboard = () => {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          </div>
-
-          {/* SLA WATCHLIST */}
-          <div className="feature-card mt-6">
-            <h2 className="text-lg font-semibold mb-4">
-              SLA Watchlist (Auto-Flagged)
-            </h2>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2">Subject</th>
-                  <th className="text-left py-2">Category</th>
-                  <th className="text-left py-2">Days Open</th>
-                  <th className="text-left py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {slaWatchlist.map((c) => (
-                  <tr
-                    key={c.id}
-                    className={`border-b ${
-                      c.breached
-                        ? "bg-red-500/10"
-                        : c.warning
-                        ? "bg-yellow-500/10"
-                        : ""
-                    }`}
-                  >
-                    <td className="py-2">{c.subject}</td>
-                    <td className="py-2">{c.category}</td>
-                    <td className="py-2 font-semibold">{c.daysOpen}</td>
-                    <td className="py-2">
-                      {c.breached
-                        ? "SLA Breached"
-                        : c.warning
-                        ? "Near Breach"
-                        : "Within SLA"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       </main>

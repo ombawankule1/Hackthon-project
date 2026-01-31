@@ -1,20 +1,20 @@
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { useState } from "react";
-import { Navbar } from "@/components/Navbar";
-import { Footer } from "@/components/Footer";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Navbar } from "../components/Navbar";
+import { Footer } from "../components/Footer";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Label } from "../components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+} from "../components/ui/select";
+import { useToast } from "../hooks/use-toast";
 import { FileText, Send } from "lucide-react";
 
 const categories = [
@@ -41,19 +41,20 @@ const districts = [
 // 🔁 ROUTING MAP (Category → Department)
 const departmentMap: Record<string, string> = {
   "Water Supply": "Water Department",
-  "Electricity": "Electricity Board",
+  Electricity: "Electricity Board",
   "Roads & Infrastructure": "Public Works Department",
   "Sanitation & Waste": "Municipal Corporation",
   "Public Transport": "Transport Authority",
   "Healthcare Services": "Health Department",
-  "Education": "Education Department",
+  Education: "Education Department",
   "Law & Order": "Police Department",
   "Property & Land": "Revenue Department",
-  "Other": "General Administration",
+  Other: "General Administration",
 };
 
 const LodgeComplaint = () => {
   const { toast } = useToast();
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -68,8 +69,8 @@ const LodgeComplaint = () => {
     e.preventDefault();
 
     try {
-      // ⏱ SLA calculation
       const slaDays = 7;
+
       const slaDeadline = new Date();
       slaDeadline.setDate(slaDeadline.getDate() + slaDays);
 
@@ -83,8 +84,10 @@ const LodgeComplaint = () => {
         description: formData.description,
 
         // 🔁 Auto-routing
-        assignedDepartment: departmentMap[formData.category],
-        assignedOffice: `${formData.district} – ${departmentMap[formData.category]}`,
+        assignedDepartment: departmentMap[formData.category] || "General Administration",
+        assignedOffice: `${formData.district} – ${
+          departmentMap[formData.category] || "General Administration"
+        }`,
 
         // 📊 Governance fields
         status: "OPEN",
@@ -97,7 +100,8 @@ const LodgeComplaint = () => {
 
       toast({
         title: "Complaint Submitted Successfully!",
-        description: "Your complaint has been routed to the appropriate department.",
+        description:
+          "Your complaint has been routed to the appropriate department.",
       });
 
       setFormData({
@@ -149,6 +153,7 @@ const LodgeComplaint = () => {
                   }
                 />
               </div>
+
               <div>
                 <Label>Phone *</Label>
                 <Input

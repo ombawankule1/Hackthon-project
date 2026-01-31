@@ -38,6 +38,20 @@ const districts = [
   "District E",
 ];
 
+// 🔁 ROUTING MAP (Category → Department)
+const departmentMap: Record<string, string> = {
+  "Water Supply": "Water Department",
+  "Electricity": "Electricity Board",
+  "Roads & Infrastructure": "Public Works Department",
+  "Sanitation & Waste": "Municipal Corporation",
+  "Public Transport": "Transport Authority",
+  "Healthcare Services": "Health Department",
+  "Education": "Education Department",
+  "Law & Order": "Police Department",
+  "Property & Land": "Revenue Department",
+  "Other": "General Administration",
+};
+
 const LodgeComplaint = () => {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -54,6 +68,11 @@ const LodgeComplaint = () => {
     e.preventDefault();
 
     try {
+      // ⏱ SLA calculation
+      const slaDays = 7;
+      const slaDeadline = new Date();
+      slaDeadline.setDate(slaDeadline.getDate() + slaDays);
+
       await addDoc(collection(db, "complaints"), {
         name: formData.name,
         email: formData.email,
@@ -62,14 +81,23 @@ const LodgeComplaint = () => {
         district: formData.district,
         subject: formData.subject,
         description: formData.description,
+
+        // 🔁 Auto-routing
+        assignedDepartment: departmentMap[formData.category],
+        assignedOffice: `${formData.district} – ${departmentMap[formData.category]}`,
+
+        // 📊 Governance fields
         status: "OPEN",
-        slaDays: 7,
+        slaDays,
+        slaDeadline,
+        escalationLevel: 0,
+
         createdAt: serverTimestamp(),
       });
 
       toast({
         title: "Complaint Submitted Successfully!",
-        description: "Your complaint has been registered and routed.",
+        description: "Your complaint has been routed to the appropriate department.",
       });
 
       setFormData({

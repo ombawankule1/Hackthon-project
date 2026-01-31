@@ -1,5 +1,5 @@
-import { Navbar } from "../components/Navbar";
-import { Footer } from "../components/Footer";
+import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
 import {
   BarChart3,
   Clock,
@@ -19,14 +19,9 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import {
-  collection,
-  getDocs,
-  doc,
-  getDoc,
-} from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { db, auth } from "../firebase";
+import { db, auth } from "@/firebase";
 import { useEffect, useState } from "react";
 
 const Dashboard = () => {
@@ -34,7 +29,6 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [complaints, setComplaints] = useState<any[]>([]);
 
-  // 🔐 AUTH + ROLE CHECK
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -58,7 +52,6 @@ const Dashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // 📥 FETCH COMPLAINTS
   useEffect(() => {
     if (role === "admin" || role === "judge") {
       const fetchComplaints = async () => {
@@ -70,6 +63,8 @@ const Dashboard = () => {
         setComplaints(data);
       };
       fetchComplaints();
+    } else {
+      setComplaints([]);
     }
   }, [role]);
 
@@ -99,7 +94,6 @@ const Dashboard = () => {
     );
   }
 
-  // ---------- HELPERS ----------
   const getDaysOpen = (createdAt: any) => {
     if (!createdAt || !createdAt.toDate) return 0;
     const created = createdAt.toDate();
@@ -109,13 +103,10 @@ const Dashboard = () => {
     );
   };
 
-  // ---------- STATS ----------
   const total = complaints.length;
   const resolved = complaints.filter((c) => c.status === "RESOLVED").length;
   const open = complaints.filter((c) => c.status === "OPEN").length;
-  const escalated = complaints.filter(
-    (c) => (c.escalationLevel || 0) > 0
-  ).length;
+  const escalated = complaints.filter((c) => (c.escalationLevel || 0) > 0).length;
 
   const stats = [
     { label: "Total Complaints", value: total, icon: BarChart3, trend: "Live" },
@@ -129,7 +120,6 @@ const Dashboard = () => {
     },
   ];
 
-  // ---------- DEPARTMENT ----------
   const departmentMap: any = {};
   complaints.forEach((c) => {
     const dept = c.category || "Other";
@@ -148,14 +138,12 @@ const Dashboard = () => {
 
   const departmentData = Object.values(departmentMap);
 
-  // ---------- PIE ----------
   const statusData = [
     { name: "Resolved", value: resolved, color: "#10b981" },
     { name: "Open", value: open, color: "#3b82f6" },
     { name: "Escalated", value: escalated, color: "#ef4444" },
   ];
 
-  // ---------- SLA WATCHLIST ----------
   const slaWatchlist = complaints
     .filter((c) => c.status === "OPEN")
     .map((c) => {
@@ -177,7 +165,6 @@ const Dashboard = () => {
 
       <main className="flex-1 py-12">
         <div className="container mx-auto px-4">
-          {/* HEADER */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <BarChart3 className="w-8 h-8 text-primary" />
@@ -190,7 +177,6 @@ const Dashboard = () => {
             </p>
           </div>
 
-          {/* STATS */}
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {stats.map((stat) => (
               <div key={stat.label} className="feature-card">
@@ -207,9 +193,11 @@ const Dashboard = () => {
             ))}
           </div>
 
-          {/* CHARTS */}
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="feature-card">
+              <h2 className="text-lg font-semibold mb-4">
+                Department Performance
+              </h2>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={departmentData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" />
@@ -224,6 +212,7 @@ const Dashboard = () => {
             </div>
 
             <div className="feature-card">
+              <h2 className="text-lg font-semibold mb-4">Complaint Status</h2>
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie data={statusData} dataKey="value" outerRadius={100}>
@@ -235,6 +224,47 @@ const Dashboard = () => {
                 </PieChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          <div className="feature-card mt-6">
+            <h2 className="text-lg font-semibold mb-4">
+              SLA Watchlist (Auto-Flagged)
+            </h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Subject</th>
+                  <th className="text-left py-2">Category</th>
+                  <th className="text-left py-2">Days Open</th>
+                  <th className="text-left py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slaWatchlist.map((c) => (
+                  <tr
+                    key={c.id}
+                    className={`border-b ${
+                      c.breached
+                        ? "bg-red-500/10"
+                        : c.warning
+                        ? "bg-yellow-500/10"
+                        : ""
+                    }`}
+                  >
+                    <td className="py-2">{c.subject}</td>
+                    <td className="py-2">{c.category}</td>
+                    <td className="py-2 font-semibold">{c.daysOpen}</td>
+                    <td className="py-2">
+                      {c.breached
+                        ? "SLA Breached"
+                        : c.warning
+                        ? "Near Breach"
+                        : "Within SLA"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </main>

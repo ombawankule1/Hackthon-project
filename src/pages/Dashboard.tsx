@@ -19,13 +19,13 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/firebase";
 import { useEffect, useState } from "react";
 
 const Dashboard = () => {
   // 🔐 STEP 5B — ROLE GUARD (demo-safe)
-  // change this to: "citizen" | "judge" | "admin"
+  // change to: "citizen" | "judge" | "admin"
   const role = "admin";
 
   const [complaints, setComplaints] = useState<any[]>([]);
@@ -43,19 +43,23 @@ const Dashboard = () => {
     fetchComplaints();
   }, []);
 
-  // ----- STATS -----
+  // ---------- SLA HELPER ----------
+  const getDaysOpen = (createdAt: Timestamp) => {
+    const created = createdAt.toDate();
+    const now = new Date();
+    return Math.floor(
+      (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)
+    );
+  };
+
+  // ---------- STATS ----------
   const total = complaints.length;
   const resolved = complaints.filter((c) => c.status === "RESOLVED").length;
-  const escalated = complaints.filter((c) => c.escalationLevel > 0).length;
   const open = complaints.filter((c) => c.status === "OPEN").length;
+  const escalated = complaints.filter((c) => c.escalationLevel > 0).length;
 
   const stats = [
-    {
-      label: "Total Complaints",
-      value: total,
-      icon: BarChart3,
-      trend: "Live data",
-    },
+    { label: "Total Complaints", value: total, icon: BarChart3, trend: "Live" },
     {
       label: "Resolved",
       value: resolved,
@@ -66,7 +70,7 @@ const Dashboard = () => {
       label: "Open",
       value: open,
       icon: Clock,
-      trend: "Within SLA",
+      trend: "Tracking SLA",
     },
     {
       label: "Escalated",
@@ -76,7 +80,7 @@ const Dashboard = () => {
     },
   ];
 
-  // ----- DEPARTMENT CHART -----
+  // ---------- DEPARTMENT PERFORMANCE ----------
   const departmentMap: any = {};
   complaints.forEach((c) => {
     const dept = c.category || "Other";
@@ -95,16 +99,26 @@ const Dashboard = () => {
 
   const departmentData = Object.values(departmentMap);
 
-  // ----- PIE CHART -----
+  // ---------- PIE ----------
   const statusData = [
     { name: "Resolved", value: resolved, color: "#10b981" },
     { name: "Open", value: open, color: "#3b82f6" },
     { name: "Escalated", value: escalated, color: "#ef4444" },
   ];
 
-  // ----- RECENT ESCALATIONS -----
-  const recentEscalations = complaints
-    .filter((c) => c.escalationLevel > 0)
+  // ---------- SLA WATCHLIST ----------
+  const slaWatchlist = complaints
+    .filter((c) => c.status === "OPEN")
+    .map((c) => {
+      const daysOpen = c.createdAt ? getDaysOpen(c.createdAt) : 0;
+      return {
+        ...c,
+        daysOpen,
+        breached: daysOpen > c.slaDays,
+        warning: daysOpen >= c.slaDays - 2 && daysOpen <= c.slaDays,
+      };
+    })
+    .sort((a, b) => b.daysOpen - a.daysOpen)
     .slice(0, 5);
 
   return (
@@ -114,7 +128,7 @@ const Dashboard = () => {
       <main className="flex-1 py-12">
         <div className="container mx-auto px-4">
           {role === "citizen" ? (
-            // 🚫 Citizen Block
+            // 🚫 CITIZEN BLOCK
             <div className="text-center mt-20">
               <AlertTriangle className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
               <h2 className="text-xl font-semibold mb-2">
@@ -126,6 +140,7 @@ const Dashboard = () => {
             </div>
           ) : (
             <>
+              {/* HEADER */}
               <div className="text-center mb-8">
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   <BarChart3 className="w-8 h-8 text-primary" />
@@ -134,7 +149,7 @@ const Dashboard = () => {
                   SLA Performance Dashboard
                 </h1>
                 <p className="text-muted-foreground">
-                  Real-time grievance routing & escalation overview
+                  Real-time grievance routing, SLA tracking & escalation
                 </p>
               </div>
 
@@ -185,13 +200,7 @@ const Dashboard = () => {
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie
-                          data={statusData}
-                          dataKey="value"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={100}
-                        >
+                        <Pie data={statusData} dataKey="value" outerRadius={100}>
                           {statusData.map((s, i) => (
                             <Cell key={i} fill={s.color} />
                           ))}
@@ -203,26 +212,41 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* ESCALATIONS */}
+              {/* SLA WATCHLIST */}
               <div className="feature-card mt-6">
                 <h2 className="text-lg font-semibold mb-4">
-                  Recent Escalations
+                  SLA Watchlist (Auto-Flagged)
                 </h2>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-2">Complaint</th>
+                      <th className="text-left py-2">Subject</th>
                       <th className="text-left py-2">Category</th>
-                      <th className="text-left py-2">Level</th>
+                      <th className="text-left py-2">Days Open</th>
+                      <th className="text-left py-2">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {recentEscalations.map((c) => (
-                      <tr key={c.id} className="border-b">
+                    {slaWatchlist.map((c) => (
+                      <tr
+                        key={c.id}
+                        className={`border-b ${
+                          c.breached
+                            ? "bg-red-500/10"
+                            : c.warning
+                            ? "bg-yellow-500/10"
+                            : ""
+                        }`}
+                      >
                         <td className="py-2">{c.subject}</td>
                         <td className="py-2">{c.category}</td>
-                        <td className="py-2 text-red-500">
-                          Level {c.escalationLevel}
+                        <td className="py-2 font-semibold">{c.daysOpen}</td>
+                        <td className="py-2">
+                          {c.breached
+                            ? "SLA Breached"
+                            : c.warning
+                            ? "Near Breach"
+                            : "Within SLA"}
                         </td>
                       </tr>
                     ))}
